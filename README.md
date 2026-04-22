@@ -37,6 +37,9 @@ sudo python3 -m hidock_reader --dry-run --dest ~/Recordings
 
 # Copy new recordings
 sudo python3 -m hidock_reader --dest ~/Recordings
+
+# Copy only recordings from the last 7 days
+sudo python3 -m hidock_reader --dest ~/Recordings --days 7
 ```
 
 ### Options
@@ -45,6 +48,7 @@ sudo python3 -m hidock_reader --dest ~/Recordings
 |--------|---------|-------------|
 | `--dest`, `-d` | `~/HidockRecordings` | Destination folder |
 | `--dry-run`, `-n` | off | Preview only, no files are copied |
+| `--days N` | all | Only process recordings from the last N days |
 
 ## How It Works
 

@@ -20,10 +20,17 @@ def main():
         action="store_true",
         help="実際のコピーを行わず、対象ファイルを表示するだけ"
     )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        metavar="N",
+        help="直近N日以内の録音のみを対象にする"
+    )
     args = parser.parse_args()
 
     try:
-        run(dest_dir=args.dest, dry_run=args.dry_run)
+        run(dest_dir=args.dest, dry_run=args.dry_run, days=args.days)
     except RuntimeError as e:
         print(f"エラー: {e}")
         raise SystemExit(1)
