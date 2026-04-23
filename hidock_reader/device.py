@@ -64,10 +64,20 @@ def query_file_list(dev):
     戻り値: [{'name': str, 'size': int, 'format': int, 'md5': str}, ...]
     """
     dev.write(EP_OUT, _build_packet(CMD_QUERY_FILE_LIST, seq=1), timeout=3000)
-    resp = bytes(dev.read(EP_IN, 131072, timeout=10000))
 
-    # レスポンスも複数Jensenパケットに分割されている場合があるため全ヘッダを除去
-    body, _ = _parse_jensen_packets(resp)
+    # レスポンスが複数回に分割される場合があるためループで受信
+    raw = bytearray()
+    while True:
+        try:
+            chunk = bytes(dev.read(EP_IN, 131072, timeout=10000))
+        except usb.core.USBTimeoutError:
+            break
+        payload, done = _parse_jensen_packets(chunk)
+        raw.extend(payload)
+        if done:
+            break
+
+    body = bytes(raw)
     body = body[4:]  # 先頭4バイト(ffff0000)のフラグを除く
     files = []
     offset = 0

@@ -27,10 +27,15 @@ def main():
         metavar="N",
         help="直近N日以内の録音のみを対象にする"
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="キャッシュを無視してデバイスからファイル一覧を再取得する"
+    )
     args = parser.parse_args()
 
     try:
-        run(dest_dir=args.dest, dry_run=args.dry_run, days=args.days)
+        run(dest_dir=args.dest, dry_run=args.dry_run, days=args.days, no_cache=args.no_cache)
     except RuntimeError as e:
         print(f"エラー: {e}")
         raise SystemExit(1)

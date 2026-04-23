@@ -1,7 +1,31 @@
 """転送オーケストレーション: デバイスとターゲットディレクトリの差分コピー"""
 import os
+import json
+import time
 import datetime
 from . import device as dev_mod
+
+CACHE_DIR = os.path.expanduser("~/.cache/hidock_reader")
+CACHE_FILE = os.path.join(CACHE_DIR, "file_list.json")
+CACHE_TTL = 3600  # 1時間
+
+
+def _load_cache():
+    """キャッシュが有効なら読み込んで返す。無効なら None。"""
+    try:
+        with open(CACHE_FILE, 'r') as f:
+            cache = json.load(f)
+        if time.time() - cache.get('timestamp', 0) < CACHE_TTL:
+            return cache['files']
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+    return None
+
+
+def _save_cache(files):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    with open(CACHE_FILE, 'w') as f:
+        json.dump({'timestamp': time.time(), 'files': files}, f)
 
 # ファイル名フォーマット: 2026Jan01-163234-Wip00.hda
 _MONTH_MAP = {m: i+1 for i, m in enumerate(
@@ -36,7 +60,7 @@ def _fmt_duration(size_bytes):
     return f"{m}:{s:02d}"
 
 
-def run(dest_dir, dry_run=False, days=None):
+def run(dest_dir, dry_run=False, days=None, no_cache=False):
     """
     ターゲットディレクトリにないファイルをデバイスからコピーする。
     dry_run=True の場合はコピーせず対象ファイルを表示するだけ。
@@ -47,13 +71,22 @@ def run(dest_dir, dry_run=False, days=None):
         print(f"エラー: コピー先ディレクトリが存在しません: {dest_dir}")
         return
 
-    print("HiDock P1 に接続中...")
-    dev = dev_mod.open_device()
-    print("接続完了\n")
+    # キャッシュからファイル一覧を取得（コピー不要ならUSB接続しない）
+    cached_files = None if no_cache else _load_cache()
+    dev = None
 
-    print("ファイル一覧を取得中...")
-    device_files = dev_mod.query_file_list(dev)
-    print(f"デバイス上のファイル数: {len(device_files)}\n")
+    if cached_files is not None:
+        device_files = cached_files
+        print(f"キャッシュからファイル一覧を読み込み ({len(device_files)} ファイル)\n")
+    else:
+        print("HiDock P1 に接続中...")
+        dev = dev_mod.open_device()
+        print("接続完了\n")
+
+        print("ファイル一覧を取得中...")
+        device_files = dev_mod.query_file_list(dev)
+        _save_cache(device_files)
+        print(f"デバイス上のファイル数: {len(device_files)}\n")
 
     # ターゲットディレクトリの既存ファイル名セット（拡張子なしで比較）
     existing_stems = {os.path.splitext(f)[0] for f in os.listdir(dest_dir)}
@@ -98,6 +131,12 @@ def run(dest_dir, dry_run=False, days=None):
             print(f"{i+1:>4}  {f['name']:<38} {size_str:>10}  {dur_str:>6}  {status}")
         print(f"\n[ドライラン] {len(to_copy)} ファイル ({_fmt_size(total_bytes)}) がコピー対象です")
         return
+
+    # キャッシュ利用時はダウンロード開始前に接続
+    if dev is None and to_copy and not dry_run:
+        print("HiDock P1 に接続中...")
+        dev = dev_mod.open_device()
+        print("接続完了\n")
 
     for i, f in enumerate(to_copy):
         size_str = _fmt_size(f['size'])
